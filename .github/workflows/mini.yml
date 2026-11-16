@@ -110,6 +110,15 @@ jobs:
           echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
           echo "VERSION_KERNEL=$(find -type f -name "*.manifest" -exec grep -oP '^kernel - \K.*?(?=~|-\d+-)' {} \;)" >> $GITHUB_ENV
 
+      - name: Upload Firmware As Artifact (fallback)
+        if: steps.compile.outputs.status == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZN-M2-firmware
+          path: ${{ env.FIRMWARE_PATH }}/*
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload Firmware To Release
         if: steps.compile.outputs.status == 'success' && env.FIRMWARE_RELEASE == 'true'
         uses: ncipollo/release-action@v1
@@ -117,7 +126,7 @@ jobs:
           name: R${{ env.DATE }} ZN-M2 ULTRA-MINIMAL
           allowUpdates: true
           tag: ${{ env.FIRMWARE_TAG }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT }}
           artifacts: ${{ env.FIRMWARE_PATH }}/*
           body: |
             **ZN-M2 极简旁路由固件 (256MB / 无WiFi / 内核6.12-nss)**
