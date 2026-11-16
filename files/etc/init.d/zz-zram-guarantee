@@ -1,0 +1,30 @@
+#!/bin/sh /etc/rc.common
+# zram-swap 兜底: 确保开机后必有 >=128MB 交换区
+# 25.12 的 zram-swap 默认按内存比例分配, 256MB 机器可能偏小; 这里兜底重设为 128MB
+START=99
+STOP=01
+
+start() {
+	# 等 zram-swap 主服务先起来
+	sleep 2
+	[ -e /dev/zram0 ] || {
+		logger -t zram-guarantee "zram0 not found, skip"
+		return 0
+	}
+	# 当前 zram 大小 < 128MB 时重设
+	cur=$(cat /sys/block/zram0/disksize 2>/dev/null)
+	[ -n "$cur" ] && [ "$cur" -lt 134217728 ] && {
+		echo 1 > /sys/block/zram0/reset 2>/dev/null
+		echo lzorle > /sys/block/zram0/comp_algorithm 2>/dev/null
+		echo 134217728 > /sys/block/zram0/disksize 2>/dev/null
+		mkswap /dev/zram0 >/dev/null 2>&1
+		swapon /dev/zram0 -p 100 >/dev/null 2>&1
+		logger -t zram-guarantee "zram resized to 128MB"
+	}
+	# 确保 swapon
+	grep -q '/dev/zram0' /proc/swaps || swapon /dev/zram0 -p 100 2>/dev/null
+}
+
+stop() {
+	swapoff /dev/zram0 2>/dev/null
+}
