@@ -3,6 +3,10 @@ name: ZN-M2-ULTRA-MINIMAL
 on:
   workflow_dispatch:
 
+# ncipollo/release-action 需要在 GITHUB_TOKEN 上具备 contents: write 才能创建 Release
+permissions:
+  contents: write
+
 env:
   REPO_URL: https://github.com/LiBwrt/openwrt-6.x.git
   REPO_BRANCH: 25.12-nss
