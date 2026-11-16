@@ -1,0 +1,50 @@
+#!/bin/sh
+# ZN-M2 极简旁路由首次启动初始化
+# 只在首次启动执行, 完成后自动删除
+set -e
+
+# ---------- 1. LAN / 网关 ----------
+uci set network.lan.ipaddr='192.168.3.168'
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.gateway='192.168.3.1'
+uci set network.lan.dns='192.168.3.1'
+uci delete network.lan.ip6assign 2>/dev/null || true
+
+# 关闭 LAN DHCP (旁路由, 避免与主路由冲突)
+uci set dhcp.lan.ignore='1'
+
+# ---------- 2. DoH 域名写死 hosts (防污染) ----------
+# 腾讯 DoH: doh.pub -> 120.53.53.53
+# 阿里 DoH: dns.alidns.com -> 223.5.5.5
+mkdir -p /etc
+cat >> /etc/hosts << 'EOF'
+120.53.53.53 doh.pub
+223.5.5.5 dns.alidns.com
+EOF
+
+# ---------- 3. DNS 防泄漏 (dnsmasq 上游指向本地 DoH 前端) ----------
+# 说明: 极简固件不内置 DoH 前端; 后续安装 PassWall/https-dns-proxy 后,
+#       按需要把 dnsmasq 上游改为 127.0.0.1#6053 等本地 DoH 端口。
+#       这里先确保关闭明文上游, 仅用系统 resolver 兜底。
+uci set dhcp.@dnsmasq[0].rebind_protection='1'
+uci set dhcp.@dnsmasq[0].localuse='1'
+uci set dhcp.@dnsmasq[0].noresolv='1'
+uci set dhcp.@dnsmasq[0].cachesize='4096'
+
+# ---------- 4. 时区 ----------
+uci set system.@system[0].zonename='Asia/Shanghai'
+uci set system.@system[0].timezone='CST-8'
+uci set system.@system[0].hostname='ZN-M2'
+
+# ---------- 5. 弱口令警告写入 banner ----------
+cat > /etc/banner << 'EOF'
+  ZN-M2 Ultra-Minimal (OpenWrt 25.12 / kernel 6.12-nss)
+  !! 首次登录请立即执行 passwd 修改默认密码 !!
+  后续装软件: apk add <包名>  (不要 apk upgrade 全量升级)
+EOF
+
+uci commit network
+uci commit dhcp
+uci commit system
+
+exit 0
