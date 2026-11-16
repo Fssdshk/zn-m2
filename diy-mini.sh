@@ -18,7 +18,19 @@ rm -rf package/luci-theme-argon 2>/dev/null || true
 [ -f feeds/luci/themes/luci-theme-bootstrap/Makefile ] && \
   sed -i 's/luci-theme-bootstrap/luci-theme-bootstrap/g' package/base-files/files/bin/config_generate 2>/dev/null || true
 
-# 4. 更新 feeds (workflow 里已执行, 这里保证索引最新)
+# 4. 修复 NSS 内核 6.12 新增选项导致 syncconfig 交互卡死
+#    ALLOC_SKB_PAGE_FRAG_DISABLE 是内核新增符号, 上游 target config 未同步,
+#    syncconfig 会当 NEW 选项弹提问, CI 无 stdin 导致 EOF -> Error 1.
+#    显式写入默认值 n, 消除交互提问 (保持默认行为: 启用页片段分配).
+for cf in target/linux/qualcommax/config-6.12 target/linux/qualcommax/ipq60xx/config-6.12; do
+  [ -f "$cf" ] || continue
+  if ! grep -q 'CONFIG_ALLOC_SKB_PAGE_FRAG_DISABLE' "$cf"; then
+    echo 'CONFIG_ALLOC_SKB_PAGE_FRAG_DISABLE=n' >> "$cf"
+    echo "[fix] appended ALLOC_SKB_PAGE_FRAG_DISABLE=n to $cf"
+  fi
+done
+
+# 5. 更新 feeds (workflow 里已执行, 这里保证索引最新)
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
